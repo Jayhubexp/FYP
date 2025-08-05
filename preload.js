@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	onGlobalShortcut: (callback) => {
 		ipcRenderer.on("global-shortcut", (_, ...args) => callback(...args));
 	},
+	openMediaFolder: () => ipcRenderer.invoke("open-media-folder"),
 	// Projection updates
 	onProjectionUpdate: (callback) => {
 		ipcRenderer.on("projection-update", (_, ...args) => callback(...args));

@@ -6,13 +6,21 @@ import {
 	screen,
 	globalShortcut,
 	Notification,
+	shell,
 } from "electron";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 // Fix for ES modules: recreate __dirname and __filename
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Add GPU fixes to prevent GPU state errors
+app.commandLine.appendSwitch("disable-gpu");
+app.commandLine.appendSwitch("disable-gpu-compositing");
+app.commandLine.appendSwitch("disable-software-rasterizer");
+app.commandLine.appendSwitch("enable-unsafe-swiftshader");
 
 const isDev = process.env.NODE_ENV === "development";
 let mainWindow;
@@ -31,8 +39,11 @@ function createMainWindow() {
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
-			// preload path pointing to the root directory
 			preload: path.join(__dirname, isDev ? "preload.js" : "dist/preload.js"),
+			// Disable hardware acceleration to prevent GPU errors
+			webgl: false,
+			experimentalFeatures: false,
+			enableRemoteModule: false,
 		},
 		icon: path.join(__dirname, "assets", "icon.png"),
 		title: "Bible Echo - AI-Powered Scripture Projection",
@@ -97,8 +108,11 @@ function createProjectionWindow() {
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
-			// Updated preload path - now pointing to the root directory
 			preload: path.join(__dirname, isDev ? "preload.js" : "dist/preload.js"),
+			// Disable hardware acceleration to prevent GPU errors
+			webgl: false,
+			experimentalFeatures: false,
+			enableRemoteModule: false,
 		},
 		show: false,
 		backgroundColor: "#000000",
@@ -295,14 +309,12 @@ app.whenReady().then(() => {
 
 		// Register global shortcuts with error handling
 		try {
-			// Use platform-specific key codes for arrow keys
 			globalShortcut.register("F1", () => {
 				if (mainWindow) {
 					mainWindow.webContents.send("global-shortcut", "help");
 				}
 			});
 
-			// Fixed arrow key shortcuts
 			globalShortcut.register("Down", () => {
 				if (mainWindow) {
 					mainWindow.webContents.send("navigate-verse", "next");
@@ -351,7 +363,98 @@ app.on("will-quit", () => {
 	}
 });
 
-// IPC handlers with proper error handling
+// IPC handlers for media file operations
+ipcMain.handle("save-media-file", (event, fileInfo) => {
+	try {
+		const { id, name, type, data } = fileInfo;
+		const fileType = type.split("/")[0];
+
+		// Create media directories if they don't exist
+		const mediaDir = path.join(__dirname, "media");
+		const targetDir = path.join(mediaDir, fileType + "s");
+		const thumbnailDir = path.join(targetDir, "thumbnails");
+
+		if (!fs.existsSync(mediaDir)) {
+			fs.mkdirSync(mediaDir, { recursive: true });
+		}
+		if (!fs.existsSync(targetDir)) {
+			fs.mkdirSync(targetDir, { recursive: true });
+		}
+		if (!fs.existsSync(thumbnailDir)) {
+			fs.mkdirSync(thumbnailDir, { recursive: true });
+		}
+
+		// Generate file paths
+		const fileExtension = name.split(".").pop();
+		const fileName = `${id}.${fileExtension}`;
+		const filePath = path.join(targetDir, fileName);
+		const thumbnailPath = path.join(thumbnailDir, `${fileName}.jpg`);
+
+		// Remove the data URL prefix
+		const base64Data = data.replace(/^data:[a-z]+\/[a-z]+;base64,/, "");
+
+		// Write the file
+		fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
+
+		// Create thumbnail for images
+		let thumbnailUrl = null;
+		if (fileType === "image") {
+			// For now, just copy the file as thumbnail
+			// In a real implementation, you would resize the image
+			fs.writeFileSync(thumbnailPath, Buffer.from(base64Data, "base64"));
+			thumbnailUrl = thumbnailPath;
+		}
+
+		return {
+			success: true,
+			filePath: filePath,
+			thumbnailUrl: thumbnailUrl,
+		};
+	} catch (error) {
+		console.error("Error saving media file:", error);
+		return {
+			success: false,
+			error: error.message,
+		};
+	}
+});
+
+ipcMain.handle("delete-media-file", (event, fileInfo) => {
+	try {
+		const { id, filePath, thumbnailUrl } = fileInfo;
+
+		// Delete the main file
+		if (filePath && fs.existsSync(filePath)) {
+			fs.unlinkSync(filePath);
+		}
+
+		// Delete the thumbnail
+		if (thumbnailUrl && fs.existsSync(thumbnailUrl)) {
+			fs.unlinkSync(thumbnailUrl);
+		}
+
+		return { success: true };
+	} catch (error) {
+		console.error("Error deleting media file:", error);
+		return {
+			success: false,
+			error: error.message,
+		};
+	}
+});
+
+ipcMain.handle("open-media-folder", () => {
+	try {
+		const mediaDir = path.join(__dirname, "media");
+		shell.openPath(mediaDir);
+		return true;
+	} catch (err) {
+		console.error("Error opening media folder:", err);
+		return false;
+	}
+});
+
+// Other IPC handlers
 ipcMain.handle("get-displays", () => {
 	try {
 		return screen.getAllDisplays().map((display) => ({
@@ -449,345 +552,11 @@ ipcMain.handle("show-notification", (event, title, body) => {
 	}
 });
 
-// import {
-// 	app,
-// 	BrowserWindow,
-// 	Menu,
-// 	ipcMain,
-// 	screen,
-// 	globalShortcut,
-// 	Notification,
-// } from "electron";
-// import path from "path";
-// import { fileURLToPath } from "url";
+// Add this to the end of the file to catch unhandled rejections
+process.on("unhandledRejection", (reason, promise) => {
+	console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
 
-// // Fix for ES modules: recreate __dirname and __filename
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
-
-// const isDev = process.env.NODE_ENV === "development";
-// let mainWindow;
-// let projectionWindow;
-
-// function createMainWindow() {
-// 	// Get primary display dimensions
-// 	const primaryDisplay = screen.getPrimaryDisplay();
-// 	const { width, height } = primaryDisplay.workAreaSize;
-
-// 	mainWindow = new BrowserWindow({
-// 		width: Math.floor(width * 0.8),
-// 		height: Math.floor(height * 0.9),
-// 		minWidth: 1200,
-// 		minHeight: 800,
-// 		webPreferences: {
-// 			nodeIntegration: false,
-// 			contextIsolation: true,
-// 			preload: path.join(__dirname, isDev ? "src" : "dist", "preload.js"),
-// 		},
-// 		icon: path.join(__dirname, "assets", "icon.png"),
-// 		title: "Bible Echo - AI-Powered Scripture Projection",
-// 		show: false,
-// 		titleBarStyle: "default",
-// 	});
-
-// 	// Load the app
-// 	if (isDev) {
-// 		mainWindow.loadURL("http://localhost:5173");
-// 		mainWindow.webContents.openDevTools();
-// 	} else {
-// 		mainWindow.loadFile(path.join(__dirname, "dist", "index.html"));
-// 	}
-
-// 	mainWindow.once("ready-to-show", () => {
-// 		mainWindow.show();
-// 		if (isDev) {
-// 			mainWindow.focus();
-// 		}
-// 	});
-
-// 	mainWindow.on("closed", () => {
-// 		mainWindow = null;
-// 		if (projectionWindow) {
-// 			projectionWindow.close();
-// 		}
-// 	});
-// }
-
-// function createProjectionWindow() {
-// 	const displays = screen.getAllDisplays();
-// 	let targetDisplay = displays[0]; // Default to primary display
-
-// 	// If multiple displays, use the second one for projection
-// 	if (displays.length > 1) {
-// 		targetDisplay = displays[1];
-// 	}
-
-// 	const { x, y, width, height } = targetDisplay.bounds;
-
-// 	projectionWindow = new BrowserWindow({
-// 		x: x,
-// 		y: y,
-// 		width: width,
-// 		height: height,
-// 		fullscreen: true,
-// 		frame: false,
-// 		alwaysOnTop: true,
-// 		webPreferences: {
-// 			nodeIntegration: false,
-// 			contextIsolation: true,
-// 			preload: path.join(__dirname, isDev ? "src" : "dist", "preload.js"),
-// 		},
-// 		show: false,
-// 		backgroundColor: "#000000",
-// 	});
-
-// 	// Load the projection view
-// 	if (isDev) {
-// 		projectionWindow.loadURL("http://localhost:5173#projection");
-// 	} else {
-// 		projectionWindow.loadFile(path.join(__dirname, "dist", "index.html"), {
-// 			hash: "projection",
-// 		});
-// 	}
-
-// 	projectionWindow.once("ready-to-show", () => {
-// 		projectionWindow.show();
-// 	});
-
-// 	projectionWindow.on("closed", () => {
-// 		projectionWindow = null;
-// 	});
-
-// 	return projectionWindow;
-// }
-
-// // App event handlers
-// app.whenReady().then(() => {
-// 	createMainWindow();
-
-// 	// Create application menu
-// 	const template = [
-// 		{
-// 			label: "File",
-// 			submenu: [
-// 				{
-// 					label: "New Schedule",
-// 					accelerator: "CmdOrCtrl+N",
-// 					click: () => {
-// 						mainWindow.webContents.send("menu-action", "new-schedule");
-// 					},
-// 				},
-// 				{
-// 					label: "Open Schedule",
-// 					accelerator: "CmdOrCtrl+O",
-// 					click: () => {
-// 						mainWindow.webContents.send("menu-action", "open-schedule");
-// 					},
-// 				},
-// 				{ type: "separator" },
-// 				{
-// 					label: "Exit",
-// 					accelerator: process.platform === "darwin" ? "Cmd+Q" : "Ctrl+Q",
-// 					click: () => {
-// 						app.quit();
-// 					},
-// 				},
-// 			],
-// 		},
-// 		{
-// 			label: "View",
-// 			submenu: [
-// 				{
-// 					label: "Toggle Projection Window",
-// 					accelerator: "F5",
-// 					click: () => {
-// 						if (projectionWindow) {
-// 							projectionWindow.close();
-// 						} else {
-// 							createProjectionWindow();
-// 						}
-// 					},
-// 				},
-// 				{
-// 					label: "Toggle Fullscreen",
-// 					accelerator: "F11",
-// 					click: () => {
-// 						const isFullScreen = mainWindow.isFullScreen();
-// 						mainWindow.setFullScreen(!isFullScreen);
-// 					},
-// 				},
-// 				{ type: "separator" },
-// 				{
-// 					label: "Reload",
-// 					accelerator: "CmdOrCtrl+R",
-// 					click: () => {
-// 						mainWindow.reload();
-// 					},
-// 				},
-// 				{
-// 					label: "Toggle Developer Tools",
-// 					accelerator: "F12",
-// 					click: () => {
-// 						mainWindow.webContents.toggleDevTools();
-// 					},
-// 				},
-// 			],
-// 		},
-// 		{
-// 			label: "Projection",
-// 			submenu: [
-// 				{
-// 					label: "Go Live",
-// 					accelerator: "Space",
-// 					click: () => {
-// 						mainWindow.webContents.send("projection-control", "live");
-// 					},
-// 				},
-// 				{
-// 					label: "Preview Mode",
-// 					accelerator: "Escape",
-// 					click: () => {
-// 						mainWindow.webContents.send("projection-control", "preview");
-// 					},
-// 				},
-// 				{
-// 					label: "Black Screen",
-// 					accelerator: "B",
-// 					click: () => {
-// 						mainWindow.webContents.send("projection-control", "black");
-// 					},
-// 				},
-// 				{
-// 					label: "Show Logo",
-// 					accelerator: "L",
-// 					click: () => {
-// 						mainWindow.webContents.send("projection-control", "logo");
-// 					},
-// 				},
-// 			],
-// 		},
-// 		{
-// 			label: "Help",
-// 			submenu: [
-// 				{
-// 					label: "About Bible Echo",
-// 					click: () => {
-// 						mainWindow.webContents.send("menu-action", "about");
-// 					},
-// 				},
-// 				{
-// 					label: "User Guide",
-// 					click: () => {
-// 						mainWindow.webContents.send("menu-action", "help");
-// 					},
-// 				},
-// 			],
-// 		},
-// 	];
-
-// 	const menu = Menu.buildFromTemplate(template);
-// 	Menu.setApplicationMenu(menu);
-
-// 	// Register global shortcuts
-// 	globalShortcut.register("F1", () => {
-// 		if (mainWindow) {
-// 			mainWindow.webContents.send("global-shortcut", "help");
-// 		}
-// 	});
-
-// 	// Verse navigation shortcuts
-// 	globalShortcut.register("ArrowDown", () => {
-// 		if (mainWindow) {
-// 			mainWindow.webContents.send("navigate-verse", "next");
-// 		}
-// 	});
-
-// 	globalShortcut.register("ArrowUp", () => {
-// 		if (mainWindow) {
-// 			mainWindow.webContents.send("navigate-verse", "prev");
-// 		}
-// 	});
-
-// 	globalShortcut.register("F5", () => {
-// 		if (projectionWindow) {
-// 			projectionWindow.close();
-// 		} else {
-// 			createProjectionWindow();
-// 		}
-// 	});
-
-// 	app.on("activate", () => {
-// 		if (BrowserWindow.getAllWindows().length === 0) {
-// 			createMainWindow();
-// 		}
-// 	});
-// });
-
-// app.on("window-all-closed", () => {
-// 	if (process.platform !== "darwin") {
-// 		app.quit();
-// 	}
-// });
-
-// app.on("will-quit", () => {
-// 	// Unregister all shortcuts
-// 	globalShortcut.unregisterAll();
-// });
-
-// // IPC handlers
-// ipcMain.handle("get-displays", () => {
-// 	return screen.getAllDisplays().map((display) => ({
-// 		id: display.id,
-// 		bounds: display.bounds,
-// 		workArea: display.workArea,
-// 		scaleFactor: display.scaleFactor,
-// 		rotation: display.rotation,
-// 		internal: display.internal,
-// 	}));
-// });
-
-// ipcMain.handle("create-projection-window", () => {
-// 	if (!projectionWindow) {
-// 		createProjectionWindow();
-// 		return true;
-// 	}
-// 	return false;
-// });
-
-// ipcMain.handle("close-projection-window", () => {
-// 	if (projectionWindow) {
-// 		projectionWindow.close();
-// 		return true;
-// 	}
-// 	return false;
-// });
-
-// ipcMain.handle("toggle-projection-window", () => {
-// 	if (projectionWindow) {
-// 		projectionWindow.close();
-// 		return false;
-// 	} else {
-// 		createProjectionWindow();
-// 		return true;
-// 	}
-// });
-
-// ipcMain.handle("update-projection-content", (event, content) => {
-// 	if (projectionWindow) {
-// 		projectionWindow.webContents.send("projection-update", content);
-// 	}
-// });
-
-// ipcMain.handle("get-app-version", () => {
-// 	return app.getVersion();
-// });
-
-// ipcMain.handle("show-notification", (event, title, body) => {
-// 	if (Notification.isSupported()) {
-// 		new Notification({
-// 			title: title,
-// 			body: body,
-// 			icon: path.join(__dirname, "assets", "icon.png"),
-// 		}).show();
-// 	}
-// });
+process.on("uncaughtException", (error) => {
+	console.error("Uncaught Exception:", error);
+});

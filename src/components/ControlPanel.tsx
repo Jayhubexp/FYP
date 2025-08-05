@@ -57,6 +57,7 @@ interface ControlPanelProps {
 	goToNextVerse: () => void;
 	goToPrevVerse: () => void;
 	onMediaAdd?: (media: MediaItem) => void;
+	onSongUpdate: (song: Song) => void;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -79,6 +80,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 	goToNextVerse,
 	goToPrevVerse,
 	onMediaAdd,
+	onSongUpdate
 }) => {
 	const { isElectron } = useElectron();
 	const [activeTab, setActiveTab] = useState<
@@ -203,19 +205,22 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 					</div>
 				)}
 
-				{activeTab === "songs" && (
-					<div className='h-full'>
-						<SongManager
-							songs={appState.songs}
-							onSongCreate={onSongCreate}
-							onSongSelect={onSongSelect}
-							currentVerseIndex={currentVerseIndex}
-							goToNextVerse={goToNextVerse}
-							goToPrevVerse={goToPrevVerse}
-							selectedSong={selectedSong}
-						/>
-					</div>
-				)}
+				{activeTab === 'songs' && (
+    <div className="h-full">
+      <SongManager
+        songs={appState.songs}
+        onSongCreate={onSongCreate}
+        onSongSelect={onSongSelect}
+        onSongUpdate={onSongUpdate}
+        currentVerseIndex={currentVerseIndex}
+        goToNextVerse={goToNextVerse}
+        goToPrevVerse={goToPrevVerse}
+        selectedSong={selectedSong}
+      />
+    </div>
+  )}
+
+				
 
 				{activeTab === "media" && (
 					<div className='h-full'>

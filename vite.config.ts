@@ -8,8 +8,10 @@ export default defineConfig({
 	plugins: [
 		react(),
 		viteStaticCopy({
-			targets: [{ src: "preload.js", dest: "dist" }],
-			hook: "writeBundle",
+			targets: [
+				{ src: "preload.js", dest: "dist" },
+				// { src: "src/assets", dest: "assets" },
+			],
 		}),
 	],
 	optimizeDeps: {
@@ -50,14 +52,3 @@ export default defineConfig({
 	// Environment variables prefix
 	envPrefix: "VITE_",
 });
-
-// import { defineConfig } from 'vite';
-// import react from '@vitejs/plugin-react';
-
-// // https://vitejs.dev/config/
-// export default defineConfig({
-//   plugins: [react()],
-//   optimizeDeps: {
-//     exclude: ['lucide-react'],
-//   },
-// });

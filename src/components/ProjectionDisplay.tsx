@@ -5,8 +5,8 @@ import {
 	PlaylistItem,
 	Song,
 	MediaItem,
-	Presentation,
 } from "../types/app";
+import { mediaService } from "../services/mediaService";
 
 interface ProjectionDisplayProps {
 	currentItem: PlaylistItem | null;
@@ -30,7 +30,6 @@ const ProjectionDisplay: React.FC<ProjectionDisplayProps> = ({
 	currentVerseIndex = 0,
 }) => {
 	const videoRef = useRef<HTMLVideoElement>(null);
-	const audioRef = useRef<HTMLAudioElement>(null);
 	const [isPlaying, setIsPlaying] = useState(false);
 	const [currentTime, setCurrentTime] = useState(0);
 	const [duration, setDuration] = useState(0);
@@ -61,27 +60,6 @@ const ProjectionDisplay: React.FC<ProjectionDisplayProps> = ({
 					video.removeEventListener("loadedmetadata", handleLoadedMetadata);
 					video.removeEventListener("ended", handleEnded);
 				};
-			} else if (media.type === "audio" && audioRef.current) {
-				const audio = audioRef.current;
-
-				const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-				const handleLoadedMetadata = () => {
-					setDuration(audio.duration);
-					if (isLiveMode) {
-						audio.play().then(() => setIsPlaying(true));
-					}
-				};
-				const handleEnded = () => setIsPlaying(false);
-
-				audio.addEventListener("timeupdate", handleTimeUpdate);
-				audio.addEventListener("loadedmetadata", handleLoadedMetadata);
-				audio.addEventListener("ended", handleEnded);
-
-				return () => {
-					audio.removeEventListener("timeupdate", handleTimeUpdate);
-					audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
-					audio.removeEventListener("ended", handleEnded);
-				};
 			}
 		}
 	}, [currentItem, isLiveMode]);
@@ -103,13 +81,6 @@ const ProjectionDisplay: React.FC<ProjectionDisplayProps> = ({
 					videoRef.current.pause();
 				} else {
 					videoRef.current.play();
-				}
-				setIsPlaying(!isPlaying);
-			} else if (media.type === "audio" && audioRef.current) {
-				if (isPlaying) {
-					audioRef.current.pause();
-				} else {
-					audioRef.current.play();
 				}
 				setIsPlaying(!isPlaying);
 			}
@@ -166,10 +137,20 @@ const ProjectionDisplay: React.FC<ProjectionDisplayProps> = ({
 					const media = currentItem.content as MediaItem;
 
 					if (media.type === "image") {
+						// Get optimized image URL based on screen size
+						const optimizedUrl = mediaService.getOptimizedImageUrl(
+							media.publicId || "",
+							{
+								width: window.innerWidth,
+								height: window.innerHeight,
+								quality: 80,
+							},
+						);
+
 						return (
 							<div className='w-full h-full flex items-center justify-center'>
 								<img
-									src={media.filePath || media.thumbnailUrl}
+									src={optimizedUrl}
 									alt={media.title}
 									className='max-w-full max-h-full object-contain'
 									style={{ maxHeight: "85vh" }}
@@ -177,12 +158,17 @@ const ProjectionDisplay: React.FC<ProjectionDisplayProps> = ({
 							</div>
 						);
 					} else if (media.type === "video") {
+						// Get optimized video URL
+						const videoUrl = mediaService.getVideoStreamUrl(
+							media.publicId || "",
+						);
+
 						return (
 							<div className='w-full h-full flex flex-col items-center justify-center'>
 								<div className='w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden relative'>
 									<video
 										ref={videoRef}
-										src={media.filePath}
+										src={videoUrl}
 										className='w-full h-full'
 										playsInline
 									/>
@@ -249,96 +235,6 @@ const ProjectionDisplay: React.FC<ProjectionDisplayProps> = ({
 								</div>
 
 								<div className='mt-4 text-white text-xl'>{media.title}</div>
-							</div>
-						);
-					} else if (media.type === "audio") {
-						return (
-							<div className='w-full h-full flex flex-col items-center justify-center'>
-								<div className='w-full max-w-md bg-gray-800 rounded-lg p-6'>
-									<div className='text-center mb-6'>
-										<div className='w-24 h-24 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4'>
-											<svg
-												xmlns='http://www.w3.org/2000/svg'
-												className='h-12 w-12 text-white'
-												fill='none'
-												viewBox='0 0 24 24'
-												stroke='currentColor'>
-												<path
-													strokeLinecap='round'
-													strokeLinejoin='round'
-													strokeWidth={2}
-													d='M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3'
-												/>
-											</svg>
-										</div>
-										<h3 className='text-xl font-semibold text-white'>
-											{media.title}
-										</h3>
-									</div>
-
-									{/* Audio Controls */}
-									<div className='space-y-4'>
-										<div className='flex items-center justify-center space-x-4'>
-											<button
-												onClick={togglePlayback}
-												className='p-3 rounded-full bg-purple-600 hover:bg-purple-700 text-white'>
-												{isPlaying ? (
-													<svg
-														xmlns='http://www.w3.org/2000/svg'
-														className='h-8 w-8'
-														fill='none'
-														viewBox='0 0 24 24'
-														stroke='currentColor'>
-														<path
-															strokeLinecap='round'
-															strokeLinejoin='round'
-															strokeWidth={2}
-															d='M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z'
-														/>
-													</svg>
-												) : (
-													<svg
-														xmlns='http://www.w3.org/2000/svg'
-														className='h-8 w-8'
-														fill='none'
-														viewBox='0 0 24 24'
-														stroke='currentColor'>
-														<path
-															strokeLinecap='round'
-															strokeLinejoin='round'
-															strokeWidth={2}
-															d='M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z'
-														/>
-														<path
-															strokeLinecap='round'
-															strokeLinejoin='round'
-															strokeWidth={2}
-															d='M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
-														/>
-													</svg>
-												)}
-											</button>
-										</div>
-
-										<div className='space-y-2'>
-											<div className='h-2 bg-gray-700 rounded-full overflow-hidden'>
-												<div
-													className='h-full bg-purple-500'
-													style={{
-														width: `${(currentTime / duration) * 100}%`,
-													}}
-												/>
-											</div>
-
-											<div className='flex justify-between text-sm text-gray-400'>
-												<span>{formatTime(currentTime)}</span>
-												<span>{formatTime(duration)}</span>
-											</div>
-										</div>
-									</div>
-								</div>
-
-								<audio ref={audioRef} src={media.filePath} />
 							</div>
 						);
 					}

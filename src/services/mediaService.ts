@@ -1,88 +1,114 @@
 import { MediaItem } from "../types/app";
+import { cloudinaryService } from "./cloudinaryService";
 
 class MediaService {
 	private mediaItems: MediaItem[] = [];
 
-	initialize() {
-		// Load sample media items with actual image URLs
+	constructor() {
+		// Initialize with sample media from Cloudinary
+		this.initializeSampleMedia();
+	}
+
+	private initializeSampleMedia() {
+		// Sample media items with Cloudinary URLs
 		this.mediaItems = [
 			{
 				id: "1",
 				title: "Mountain Sunrise",
 				type: "image",
-				filePath: "../media/do.jpg",
+				url: "https://res.cloudinary.com/demo/image/upload/v1699999999/mountain-sunrise.jpg",
 				thumbnailUrl:
-					"https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80",
+					"https://res.cloudinary.com/demo/image/upload/c_fill,w_400,h_300/v1699999999/mountain-sunrise.jpg",
+				publicId: "mountain-sunrise",
 				createdAt: new Date("2024-01-01"),
+				format: "jpg",
+				size: 2048000, // 2MB
 			},
 			{
 				id: "2",
 				title: "Cross on Hill",
 				type: "image",
-				filePath:
-					"https://images.unsplash.com/photo-1549490349-8643362247b5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80",
+				url: "https://res.cloudinary.com/demo/image/upload/v1699999999/cross-on-hill.jpg",
 				thumbnailUrl:
-					"https://images.unsplash.com/photo-1549490349-8643362247b5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80",
+					"https://res.cloudinary.com/demo/image/upload/c_fill,w_400,h_300/v1699999999/cross-on-hill.jpg",
+				publicId: "cross-on-hill",
 				createdAt: new Date("2024-01-02"),
+				format: "jpg",
+				size: 1843200, // 1.8MB
 			},
 			{
 				id: "3",
-				title: "Ocean Waves",
+				title: "Church Interior",
 				type: "image",
-				filePath:
-					"https://images.unsplash.com/photo-1549490349-8643362247b5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80",
+				url: "https://res.cloudinary.com/demo/image/upload/v1699999999/church-interior.jpg",
 				thumbnailUrl:
-					"https://images.unsplash.com/photo-1549490349-8643362247b5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80",
+					"https://res.cloudinary.com/demo/image/upload/c_fill,w_400,h_300/v1699999999/church-interior.jpg",
+				publicId: "church-interior",
 				createdAt: new Date("2024-01-03"),
+				format: "jpg",
+				size: 2560000, // 2.5MB
 			},
 			{
 				id: "4",
-				title: "Forest Path",
-				type: "image",
-				filePath:
-					"https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80",
+				title: "Welcome Video",
+				type: "video",
+				url: "https://res.cloudinary.com/demo/video/upload/v1699999999/welcome-video.mp4",
 				thumbnailUrl:
-					"https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80",
+					"https://res.cloudinary.com/demo/video/upload/c_fill,w_400,h_300/v1699999999/welcome-video.jpg",
+				publicId: "welcome-video",
+				duration: 120,
 				createdAt: new Date("2024-01-04"),
+				format: "mp4",
+				size: 10240000, // 10MB
 			},
 			{
 				id: "5",
-				title: "Welcome Video",
-				type: "video",
-				filePath:
-					"https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4",
-				duration: 30,
+				title: "Worship Background",
+				type: "image",
+				url: "https://res.cloudinary.com/demo/image/upload/v1699999999/worship-background.jpg",
 				thumbnailUrl:
-					"https://images.unsplash.com/photo-1181406402839-9d4d8ed0b0d8?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80",
+					"https://res.cloudinary.com/demo/image/upload/c_fill,w_400,h_300/v1699999999/worship-background.jpg",
+				publicId: "worship-background",
 				createdAt: new Date("2024-01-05"),
+				format: "jpg",
+				size: 3072000, // 3MB
 			},
 			{
 				id: "6",
-				title: "Prelude Music",
-				type: "audio",
-				filePath: "https://sample-videos.com/zip/10/mp3/SampleAudio_0.4mb.mp3",
-				duration: 30,
+				title: "Announcement Video",
+				type: "video",
+				url: "https://res.cloudinary.com/demo/video/upload/v1699999999/announcement-video.mp4",
+				thumbnailUrl:
+					"https://res.cloudinary.com/demo/video/upload/c_fill,w_400,h_300/v1699999999/announcement-video.jpg",
+				publicId: "announcement-video",
+				duration: 180,
 				createdAt: new Date("2024-01-06"),
+				format: "mp4",
+				size: 15360000, // 15MB
 			},
 			{
 				id: "7",
-				title: "Church Interior",
+				title: "Bible on Table",
 				type: "image",
-				filePath:
-					"https://images.unsplash.com/photo-1516494419754-9c5e9b1f0a9e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80",
+				url: "https://res.cloudinary.com/demo/image/upload/v1699999999/bible-on-table.jpg",
 				thumbnailUrl:
-					"https://images.unsplash.com/photo-1516494419754-9c5e9b1f0a9e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80",
+					"https://res.cloudinary.com/demo/image/upload/c_fill,w_400,h_300/v1699999999/bible-on-table.jpg",
+				publicId: "bible-on-table",
 				createdAt: new Date("2024-01-07"),
+				format: "jpg",
+				size: 2252800, // 2.2MB
 			},
 			{
 				id: "8",
-				title: "Bible on Table",
+				title: "Sunset Worship",
 				type: "image",
-				filePath:
-					"https://images.unsplash.com/photo-1504052434568-729c037b6a9d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80",
+				url: "https://res.cloudinary.com/demo/image/upload/v1699999999/sunset-worship.jpg",
 				thumbnailUrl:
-					"https://images.unsplash.com/photo-1504052434568-729c037b6a9d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80",
+					"https://res.cloudinary.com/demo/image/upload/c_fill,w_400,h_300/v1699999999/sunset-worship.jpg",
+				publicId: "sunset-worship",
 				createdAt: new Date("2024-01-08"),
+				format: "jpg",
+				size: 2867200, // 2.8MB
 			},
 		];
 	}
@@ -91,24 +117,72 @@ class MediaService {
 		return this.mediaItems;
 	}
 
-	addMediaItem(mediaData: Omit<MediaItem, "id" | "createdAt">): MediaItem {
-		const newMedia: MediaItem = {
-			...mediaData,
-			id: Date.now().toString(),
-			createdAt: new Date(),
-		};
+	/**
+	 * Upload a media file to Cloudinary
+	 */
+	async uploadMediaFile(file: File): Promise<MediaItem> {
+		try {
+			// Upload to Cloudinary
+			const response = await cloudinaryService.uploadFile(
+				file,
+				"bible-echo-media",
+			);
 
-		this.mediaItems.push(newMedia);
-		return newMedia;
+			if (!response.success) {
+				throw new Error(response.error || "Failed to upload file");
+			}
+
+			// Create media item
+			const newMedia: MediaItem = {
+				id: `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+				title: file.name.replace(/\.[^/.]+$/, ""), // Remove file extension
+				type: file.type.startsWith("image/") ? "image" : "video",
+				url: response.url!,
+				thumbnailUrl: response.thumbnailUrl,
+				publicId: response.publicId,
+				createdAt: new Date(),
+				size: file.size,
+				format: file.name.split(".").pop(),
+			};
+
+			// Add to media items
+			this.mediaItems.push(newMedia);
+
+			return newMedia;
+		} catch (error) {
+			console.error("Error uploading media file:", error);
+			throw error;
+		}
 	}
 
-	deleteMediaItem(id: string): boolean {
+	/**
+	 * Delete a media item
+	 */
+	async deleteMediaItem(id: string): Promise<boolean> {
 		const index = this.mediaItems.findIndex((item) => item.id === id);
 		if (index === -1) return false;
-		this.mediaItems.splice(index, 1);
-		return true;
+
+		const mediaItem = this.mediaItems[index];
+
+		try {
+			// Delete from Cloudinary
+			if (mediaItem.publicId) {
+				await cloudinaryService.deleteFile(mediaItem.publicId);
+			}
+
+			// Remove from media items
+			this.mediaItems.splice(index, 1);
+
+			return true;
+		} catch (error) {
+			console.error("Error deleting media item:", error);
+			return false;
+		}
 	}
 
+	/**
+	 * Search media items
+	 */
 	searchMedia(query: string, type?: MediaItem["type"]): MediaItem[] {
 		const normalizedQuery = query.toLowerCase();
 		return this.mediaItems.filter((item) => {
@@ -118,8 +192,32 @@ class MediaService {
 		});
 	}
 
+	/**
+	 * Get media by type
+	 */
 	getMediaByType(type: MediaItem["type"]): MediaItem[] {
 		return this.mediaItems.filter((item) => item.type === type);
+	}
+
+	/**
+	 * Get optimized image URL
+	 */
+	getOptimizedImageUrl(
+		publicId: string,
+		options?: {
+			width?: number;
+			height?: number;
+			quality?: number;
+		},
+	): string {
+		return cloudinaryService.getOptimizedImageUrl(publicId, options);
+	}
+
+	/**
+	 * Get video stream URL
+	 */
+	getVideoStreamUrl(publicId: string): string {
+		return cloudinaryService.getVideoStreamUrl(publicId);
 	}
 }
 

@@ -72,6 +72,21 @@ function App() {
 		}
 	};
 
+	const handleSongUpdate = (song: Song) => {
+		setAppState((prev) => ({
+			...prev,
+			songs: prev.songs.map((s) => (s.id === song.id ? song : s)),
+			logs: [
+				...prev.logs,
+				{
+					timestamp: new Date(),
+					message: `Updated song: ${song.title}`,
+					type: "success",
+				},
+			],
+		}));
+	};
+
 	const goToPrevVerse = () => {
 		if (currentVerseIndex > 0) {
 			setCurrentVerseIndex(currentVerseIndex - 1);
@@ -169,7 +184,7 @@ function App() {
 		// Initialize services
 		bibleSearchService.initialize();
 		songService.initialize();
-		mediaService.initialize();
+		// mediaService.initialize();
 		scheduleService.initialize();
 		themeService.initialize();
 
@@ -482,6 +497,7 @@ function App() {
 					goToNextVerse={goToNextVerse}
 					goToPrevVerse={goToPrevVerse}
 					onMediaAdd={handleMediaAdd}
+					onSongUpdate={handleSongUpdate}
 				/>
 			</div>
 			{/* Projection Display Window */}
