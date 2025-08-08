@@ -26,10 +26,27 @@ const isDev = process.env.NODE_ENV === "development";
 let mainWindow;
 let projectionWindow;
 
+const setAppIcon = () => {
+	// Path to your icon
+	const iconPath = path.join(
+		isDev ? path.join(__dirname, "src") : __dirname,
+		"assets",
+		"Group2.png",
+	);
+
+	// Set the dock icon for macOS
+	if (process.platform === "darwin") {
+		app.dock.setIcon(iconPath);
+	}
+
+	return iconPath;
+};
+
 function createMainWindow() {
 	// Get primary display dimensions
 	const primaryDisplay = screen.getPrimaryDisplay();
 	const { width, height } = primaryDisplay.workAreaSize;
+	const iconPath = setAppIcon();
 
 	mainWindow = new BrowserWindow({
 		width: Math.floor(width * 0.8),
@@ -45,7 +62,7 @@ function createMainWindow() {
 			experimentalFeatures: false,
 			enableRemoteModule: false,
 		},
-		icon: path.join(__dirname, "assets", "icon.png"),
+		icon: iconPath,
 		title: "Bible Echo - AI-Powered Scripture Projection",
 		show: false,
 		titleBarStyle: "default",

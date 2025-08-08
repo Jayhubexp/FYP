@@ -10,14 +10,14 @@ export default defineConfig({
 		viteStaticCopy({
 			targets: [
 				{ src: "preload.js", dest: "dist" },
-				// { src: "src/assets", dest: "assets" },
+				{ src: "src/assets", dest: "dist/assets" },
 			],
 		}),
 	],
 	optimizeDeps: {
 		exclude: ["lucide-react"],
 	},
-	// Ensure proper base path for both dev and production
+	// Ensuring proper base path for both dev and production
 	base: process.env.NODE_ENV === "production" ? "./" : "/",
 	// Build output configuration
 	build: {
@@ -39,6 +39,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),
+			"@assets": path.resolve(__dirname, "./src/assets"),
 		},
 	},
 	// Development server configuration
