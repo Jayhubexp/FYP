@@ -12,6 +12,9 @@ export interface TranscriptionResult {
 	text: string;
 	confidence: number;
 	timestamp: Date;
+	segments?: Array<any>;
+	language?: string;
+	durationSec?: number;
 }
 
 export interface ProjectionSettings {

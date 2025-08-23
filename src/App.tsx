@@ -1,20 +1,22 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useElectron, useElectronProjection } from "./hooks/useElectron";
 import ControlPanel from "./components/ControlPanel";
 import ProjectionDisplay from "./components/ProjectionDisplay";
 import {
 	BibleVerse,
-	TranscriptionResult,
+	// TranscriptionResult, // Removed unused import
 	AppState,
 	Song,
-	Presentation,
+	// Presentation, // Removed unused import
 	MediaItem,
 	Schedule,
 	PlaylistItem,
 	Theme,
 } from "./types/app";
 import { bibleSearchService } from "./services/bibleSearchService";
-import { mockSpeechService } from "./services/mockSpeechService";
+// import { mockSpeechService } from "./services/mockSpeechService";
+import { speechRecognitionService } from "./services/speechRecognitionService";
+// import { verseDetectionService } from "./services/verseDetectionService"; // Removed unused import
 import { songService } from "./services/songService";
 import { mediaService } from "./services/mediaService";
 import { scheduleService } from "./services/scheduleService";
@@ -102,7 +104,6 @@ function App() {
 				goToPrevVerse();
 			}
 		};
-
 		window.addEventListener("keydown", handleKeyDown);
 		return () => {
 			window.removeEventListener("keydown", handleKeyDown);
@@ -113,7 +114,7 @@ function App() {
 	useEffect(() => {
 		if (electronAPI) {
 			// Listen for menu actions
-			electronAPI.onMenuAction((event, action) => {
+			electronAPI.onMenuAction((_, action) => {
 				switch (action) {
 					case "new-schedule":
 						// Handle new schedule creation
@@ -131,12 +132,12 @@ function App() {
 			});
 
 			// Listen for projection control shortcuts
-			electronAPI.onProjectionControl((event, action) => {
+			electronAPI.onProjectionControl((_, action) => {
 				handleLiveControl(action as any);
 			});
 
 			// Listen for global shortcuts
-			electronAPI.onGlobalShortcut((event, shortcut) => {
+			electronAPI.onGlobalShortcut((_, shortcut) => {
 				if (shortcut === "navigate-verse") {
 					// This will be handled by the keyboard event listener
 				} else if (shortcut === "help") {
@@ -182,7 +183,7 @@ function App() {
 
 	useEffect(() => {
 		// Initialize services
-		bibleSearchService.initialize();
+		// bibleSearchService.initialize(); // Not needed, no such method
 		songService.initialize();
 		// mediaService.initialize();
 		scheduleService.initialize();
@@ -198,38 +199,38 @@ function App() {
 		}));
 	}, []);
 
-	const handleStartListening = () => {
-		setAppState((prev) => ({
-			...prev,
-			isListening: true,
-			logs: [
-				...prev.logs,
-				{
-					timestamp: new Date(),
-					message: "Started listening for speech",
-					type: "info",
-				},
-			],
-		}));
-		mockSpeechService.startListening((result: TranscriptionResult) => {
-			setAppState((prev) => ({ ...prev, currentTranscription: result.text }));
-			const matches = bibleSearchService.searchVerses(result.text);
-			if (matches.length > 0) {
-				setAppState((prev) => ({
-					...prev,
-					matchedVerses: matches,
-					selectedVerse: matches[0],
-					logs: [
-						...prev.logs,
-						{
-							timestamp: new Date(),
-							message: `Found ${matches.length} matching verses for: "${result.text}"`,
-							type: "success",
-						},
-					],
-				}));
-			}
-		});
+	const handleStartListening = async () => {
+		try {
+			setAppState((prev) => ({
+				...prev,
+				isListening: true,
+				logs: [
+					...prev.logs,
+					{
+						timestamp: new Date(),
+						message: "Started listening for speech",
+						type: "info",
+					},
+				],
+			}));
+
+			// Start the real speech recognition service
+			await speechRecognitionService.startListening();
+		} catch (error) {
+			console.error("Error starting speech recognition:", error);
+			setAppState((prev) => ({
+				...prev,
+				isListening: false,
+				logs: [
+					...prev.logs,
+					{
+						timestamp: new Date(),
+						message: `Error starting speech recognition: ${error}`,
+						type: "error",
+					},
+				],
+			}));
+		}
 	};
 
 	const handleStopListening = () => {
@@ -241,7 +242,34 @@ function App() {
 				{ timestamp: new Date(), message: "Stopped listening", type: "info" },
 			],
 		}));
-		mockSpeechService.stopListening();
+
+		// Stop the real speech recognition service
+		speechRecognitionService.stopListening();
+	};
+
+	const handleTranscriptionUpdate = (text: string) => {
+		// Update the app state with the new transcription
+		setAppState((prev) => ({
+			...prev,
+			currentTranscription: text,
+		}));
+	};
+
+	const handleVerseDetected = (verses: BibleVerse[]) => {
+		// Update the app state with the matched verses
+		setAppState((prev) => ({
+			...prev,
+			matchedVerses: verses,
+			selectedVerse: verses.length > 0 ? verses[0] : null,
+			logs: [
+				...prev.logs,
+				{
+					timestamp: new Date(),
+					message: `Detected ${verses.length} matching verses from speech`,
+					type: "success",
+				},
+			],
+		}));
 	};
 
 	const handleVerseSelect = (verse: BibleVerse) => {
@@ -259,8 +287,8 @@ function App() {
 		}));
 	};
 
-	const handleManualSearch = (query: string) => {
-		const matches = bibleSearchService.searchVerses(query);
+	const handleManualSearch = async (query: string) => {
+		const matches = await bibleSearchService.searchVerses(query);
 		setAppState((prev) => ({
 			...prev,
 			matchedVerses: matches,
@@ -498,6 +526,8 @@ function App() {
 					goToPrevVerse={goToPrevVerse}
 					onMediaAdd={handleMediaAdd}
 					onSongUpdate={handleSongUpdate}
+					onTranscriptionUpdate={handleTranscriptionUpdate}
+					onVerseDetected={handleVerseDetected}
 				/>
 			</div>
 			{/* Projection Display Window */}

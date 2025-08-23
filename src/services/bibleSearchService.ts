@@ -1,153 +1,145 @@
-import { BibleVerse } from '../types/app';
-import { bibleData } from '../data/bibleDatabase';
+import { BibleVerse } from "../types/app";
 
 class BibleSearchService {
-  private verses: BibleVerse[] = [];
+	private apiKey: string = (process.env.YOUR_SCRIPTURE_API_KEY as any) ?? "";
+	private bibleId: string = "de4e12af7f28f599-02"; // KJV Bible ID
 
-  initialize() {
-    this.verses = bibleData;
-  }
+	constructor() {
+		if (!this.apiKey) {
+			console.warn(
+				"YOUR_SCRIPTURE_API_KEY not set — bibleSearchService will use the local /api/bible-search proxy when available.",
+			);
+		}
+	}
 
-  searchVerses(query: string): BibleVerse[] {
-    if (!query.trim()) return [];
+	private async fetchFromApi(path: string) {
+		const isBrowser =
+			typeof window !== "undefined" && typeof window.document !== "undefined";
 
-    const normalizedQuery = query.toLowerCase().trim();
-    const words = normalizedQuery.split(/\s+/);
-    
-    // Search strategies
-    const results: Map<string, BibleVerse & { confidence: number }> = new Map();
+		// In browser, always use the local proxy to avoid exposing API keys and to prevent CORS/401
+		if (isBrowser) {
+			const match = path.match(/search\?query=(.*)$/);
+			const q = match ? decodeURIComponent(match[1]) : "";
+			const proxyUrl = `/api/bible-search?q=${encodeURIComponent(q)}`;
+			const proxyResp = await fetch(proxyUrl);
+			if (!proxyResp.ok) {
+				throw new Error(`Proxy HTTP error! status: ${proxyResp.status}`);
+			}
+			return proxyResp.json();
+		}
 
-    // 1. Direct reference search (e.g., "John 3:16")
-    const referenceMatch = this.searchByReference(normalizedQuery);
-    if (referenceMatch) {
-      results.set(referenceMatch.id, { ...referenceMatch, confidence: 1.0 });
-    }
+		// Server-side: call the external Scripture API directly using configured API key
+		if (!this.apiKey) {
+			throw new Error(
+				"Scripture API key not configured for server-side requests",
+			);
+		}
 
-    // 2. Exact phrase matching
-    this.verses.forEach(verse => {
-      const verseText = verse.text.toLowerCase();
-      if (verseText.includes(normalizedQuery)) {
-        const confidence = normalizedQuery.length / verseText.length;
-        if (!results.has(verse.id) || results.get(verse.id)!.confidence < confidence) {
-          results.set(verse.id, { ...verse, confidence: Math.min(confidence + 0.2, 1.0) });
-        }
-      }
-    });
+		const response = await fetch(`https://api.scripture.api.bible/v1${path}`, {
+			headers: {
+				"api-key": this.apiKey,
+				Accept: "application/json",
+			},
+		});
 
-    // 3. Fuzzy word matching
-    this.verses.forEach(verse => {
-      const verseWords = verse.text.toLowerCase().split(/\s+/);
-      const matchedWords = words.filter(word => 
-        verseWords.some(verseWord => 
-          verseWord.includes(word) || word.includes(verseWord) || 
-          this.levenshteinDistance(word, verseWord) <= 2
-        )
-      );
-      
-      if (matchedWords.length >= Math.min(3, words.length * 0.7)) {
-        const confidence = matchedWords.length / words.length * 0.8;
-        if (!results.has(verse.id) || results.get(verse.id)!.confidence < confidence) {
-          results.set(verse.id, { ...verse, confidence });
-        }
-      }
-    });
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
+		}
 
-    // 4. Semantic keyword matching
-    const keywordMatches = this.searchByKeywords(words);
-    keywordMatches.forEach(verse => {
-      if (!results.has(verse.id)) {
-        results.set(verse.id, verse);
-      }
-    });
+		return response.json();
+	}
 
-    // Convert to array and sort by confidence
-    return Array.from(results.values())
-      .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, 10); // Limit to top 10 results
-  }
+	// Detect if query looks like a reference (e.g., "John 3:16")
+	private isReference(query: string): boolean {
+		return /\b\d?\s?[A-Za-z]+\s+\d+:\d+\b/.test(query);
+	}
 
-  private searchByReference(query: string): BibleVerse | null {
-    // Handle various reference formats
-    const patterns = [
-      /(\d?\s*\w+)\s+(\d+):(\d+)/i,  // "John 3:16", "1 John 2:3"
-      /(\d?\s*\w+)\s+(\d+)\s+(\d+)/i, // "John 3 16"
-      /(\w+)\s+(\d+):(\d+)/i          // "john 3:16"
-    ];
+	// Get a verse by reference like "John 3:16"
+	async getVerseByReference(ref: string): Promise<BibleVerse | null> {
+		try {
+			const encodedRef = encodeURIComponent(ref);
+			const data = await this.fetchFromApi(
+				`/bibles/${this.bibleId}/search?query=${encodedRef}`,
+			);
 
-    for (const pattern of patterns) {
-      const match = query.match(pattern);
-      if (match) {
-        const [, book, chapter, verse] = match;
-        const foundVerse = this.verses.find(v => 
-          v.book.toLowerCase().includes(book.toLowerCase().trim()) &&
-          v.chapter === parseInt(chapter) &&
-          v.verse === parseInt(verse)
-        );
-        if (foundVerse) return foundVerse;
-      }
-    }
+			// Support both external API shape { data: { verses: [...] } } and local proxy which returns an array
+			let verses: any[] = [];
+			if (Array.isArray(data)) {
+				verses = data;
+			} else if (data && data.data && Array.isArray(data.data.verses)) {
+				verses = data.data.verses;
+			}
 
-    return null;
-  }
+			if (verses.length === 0) return null;
 
-  private searchByKeywords(words: string[]): (BibleVerse & { confidence: number })[] {
-    const keywordMap: { [key: string]: string[] } = {
-      love: ['love', 'beloved', 'charity', 'affection'],
-      faith: ['faith', 'believe', 'trust', 'faithful'],
-      hope: ['hope', 'trust', 'expectation'],
-      peace: ['peace', 'rest', 'calm', 'still'],
-      joy: ['joy', 'rejoice', 'glad', 'merry'],
-      strength: ['strength', 'strong', 'mighty', 'power'],
-      wisdom: ['wisdom', 'wise', 'understanding', 'knowledge'],
-      forgiveness: ['forgive', 'forgiveness', 'mercy', 'pardon'],
-      salvation: ['salvation', 'save', 'saved', 'savior'],
-      eternal: ['eternal', 'everlasting', 'forever', 'always']
-    };
+			const verse = verses[0];
+			const reference = verse.reference || verse.canonical || "";
+			const referenceParts = (reference.split(" ")[1] || "").split(":");
+			const chapterNum = parseInt(referenceParts[0] || "0") || 0;
+			const verseNum = parseInt(referenceParts[1] || "0") || 0;
 
-    const results: (BibleVerse & { confidence: number })[] = [];
-    
-    words.forEach(word => {
-      Object.entries(keywordMap).forEach(([theme, keywords]) => {
-        if (keywords.some(keyword => keyword.includes(word) || word.includes(keyword))) {
-          this.verses.forEach(verse => {
-            const verseText = verse.text.toLowerCase();
-            const keywordCount = keywords.filter(keyword => verseText.includes(keyword)).length;
-            if (keywordCount > 0) {
-              const confidence = Math.min(keywordCount * 0.3, 0.7);
-              const existing = results.find(r => r.id === verse.id);
-              if (existing) {
-                existing.confidence = Math.max(existing.confidence, confidence);
-              } else {
-                results.push({ ...verse, confidence });
-              }
-            }
-          });
-        }
-      });
-    });
+			return {
+				id: verse.id,
+				reference,
+				book: (reference.split(" ")[0] || "").trim(),
+				chapter: chapterNum,
+				verse: verseNum,
+				text: (verse.text || verse.content || "").replace(/<[^>]+>/g, ""), // strip HTML
+			};
+		} catch (error) {
+			console.error("Error fetching verse:", error);
+			return null;
+		}
+	}
 
-    return results;
-  }
+	// Search verses by text content
+	async searchVerses(query: string): Promise<BibleVerse[]> {
+		if (!query.trim()) return [];
 
-  private levenshteinDistance(str1: string, str2: string): number {
-    const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
-    
-    for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
-    for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
-    
-    for (let j = 1; j <= str2.length; j++) {
-      for (let i = 1; i <= str1.length; i++) {
-        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
-        matrix[j][i] = Math.min(
-          matrix[j][i - 1] + 1,     // deletion
-          matrix[j - 1][i] + 1,     // insertion
-          matrix[j - 1][i - 1] + indicator // substitution
-        );
-      }
-    }
-    
-    return matrix[str2.length][str1.length];
-  }
+		try {
+			const encodedQuery = encodeURIComponent(query);
+			const data = await this.fetchFromApi(
+				`/bibles/${this.bibleId}/search?query=${encodedQuery}`,
+			);
+
+			let verses: any[] = [];
+			if (Array.isArray(data)) {
+				verses = data;
+			} else if (data && data.data && Array.isArray(data.data.verses)) {
+				verses = data.data.verses;
+			}
+
+			if (!verses || verses.length === 0) return [];
+
+			return verses.map((verse: any) => {
+				const reference = verse.reference || verse.canonical || "";
+				const referenceParts = (reference.split(" ")[1] || "").split(":");
+				const chapterNum = parseInt(referenceParts[0] || "0") || 0;
+				const verseNum = parseInt(referenceParts[1] || "0") || 0;
+
+				return {
+					id: verse.id,
+					reference,
+					book: (reference.split(" ")[0] || "").trim(),
+					chapter: chapterNum,
+					verse: verseNum,
+					text: (verse.text || verse.content || "").replace(/<[^>]+>/g, ""),
+				} as BibleVerse;
+			});
+		} catch (error) {
+			console.error("Bible search error:", error);
+			return [];
+		}
+	}
+
+	// Master method: decide whether query is a reference or text
+	async findVerse(query: string): Promise<BibleVerse[] | BibleVerse | null> {
+		if (this.isReference(query)) {
+			return await this.getVerseByReference(query);
+		} else {
+			return await this.searchVerses(query);
+		}
+	}
 }
 
 export const bibleSearchService = new BibleSearchService();

@@ -7,6 +7,7 @@ import {
 	globalShortcut,
 	Notification,
 	shell,
+	dialog,
 } from "electron";
 import fs from "fs";
 import path from "path";
@@ -33,12 +34,10 @@ const setAppIcon = () => {
 		"assets",
 		"Group2.png",
 	);
-
 	// Set the dock icon for macOS
 	if (process.platform === "darwin") {
 		app.dock.setIcon(iconPath);
 	}
-
 	return iconPath;
 };
 
@@ -103,16 +102,31 @@ function createMainWindow() {
 	});
 }
 
-function createProjectionWindow() {
+function createProjectionWindow(displayId = null) {
 	const displays = screen.getAllDisplays();
 	let targetDisplay = displays[0]; // Default to primary display
 
-	// If multiple displays, use the second one for projection
-	if (displays.length > 1) {
+	// If a displayId is provided, try to find it
+	if (displayId) {
+		const found = displays.find((d) => d.id === displayId);
+		if (found) targetDisplay = found;
+	} else if (displays.length > 1) {
+		// If multiple displays, use the second one for projection by default
 		targetDisplay = displays[1];
 	}
 
 	const { x, y, width, height } = targetDisplay.bounds;
+
+	// Warn if projecting on the main display
+	const primaryDisplay = screen.getPrimaryDisplay();
+	if (targetDisplay.id === primaryDisplay.id && displays.length === 1) {
+		dialog.showMessageBoxSync({
+			type: "warning",
+			title: "Projection Warning",
+			message:
+				"You are about to project on your main display. Connect a second screen for a real projection experience.",
+		});
+	}
 
 	projectionWindow = new BrowserWindow({
 		x: x,
@@ -126,7 +140,6 @@ function createProjectionWindow() {
 			nodeIntegration: false,
 			contextIsolation: true,
 			preload: path.join(__dirname, isDev ? "preload.js" : "dist/preload.js"),
-			// Disable hardware acceleration to prevent GPU errors
 			webgl: false,
 			experimentalFeatures: false,
 			enableRemoteModule: false,
@@ -141,7 +154,6 @@ function createProjectionWindow() {
 			.loadURL("http://localhost:5173#projection")
 			.catch((err) => {
 				console.error("Failed to load projection dev server URL:", err);
-				// Fallback to loading the built file
 				projectionWindow
 					.loadFile(path.join(__dirname, "dist", "index.html"), {
 						hash: "projection",
@@ -177,6 +189,38 @@ function createProjectionWindow() {
 // App event handlers
 app.whenReady().then(() => {
 	try {
+		// Set up display event handlers
+		screen.on("display-added", () => {
+			if (projectionWindow) {
+				// Optionally, move projection window to the new display if needed
+				// For now, do nothing (user can re-toggle projection)
+			}
+		});
+
+		screen.on("display-removed", () => {
+			if (projectionWindow) {
+				// If the display used for projection is removed, close the window
+				const displays = screen.getAllDisplays();
+				const winBounds = projectionWindow.getBounds();
+				const stillExists = displays.some((d) => {
+					const b = d.bounds;
+					return (
+						b.x === winBounds.x &&
+						b.y === winBounds.y &&
+						b.width === winBounds.width &&
+						b.height === winBounds.height
+					);
+				});
+				if (!stillExists) {
+					projectionWindow.close();
+				}
+			}
+		});
+
+		screen.on("display-metrics-changed", () => {
+			// Optionally, update projection window bounds if needed
+		});
+
 		createMainWindow();
 
 		// Create application menu
@@ -331,19 +375,16 @@ app.whenReady().then(() => {
 					mainWindow.webContents.send("global-shortcut", "help");
 				}
 			});
-
 			globalShortcut.register("Down", () => {
 				if (mainWindow) {
 					mainWindow.webContents.send("navigate-verse", "next");
 				}
 			});
-
 			globalShortcut.register("Up", () => {
 				if (mainWindow) {
 					mainWindow.webContents.send("navigate-verse", "prev");
 				}
 			});
-
 			globalShortcut.register("F5", () => {
 				if (projectionWindow) {
 					projectionWindow.close();
@@ -364,6 +405,8 @@ app.whenReady().then(() => {
 		console.error("Error during app initialization:", err);
 	}
 });
+
+// Handle display hotplug events will be set up when app is ready
 
 app.on("window-all-closed", () => {
 	if (process.platform !== "darwin") {
@@ -488,10 +531,11 @@ ipcMain.handle("get-displays", () => {
 	}
 });
 
-ipcMain.handle("create-projection-window", () => {
+// Accept displayId for projection
+ipcMain.handle("create-projection-window", (event, displayId) => {
 	try {
 		if (!projectionWindow) {
-			createProjectionWindow();
+			createProjectionWindow(displayId);
 			return true;
 		}
 		return false;
@@ -565,6 +609,27 @@ ipcMain.handle("show-notification", (event, title, body) => {
 		return false;
 	} catch (err) {
 		console.error("Error showing notification:", err);
+		return false;
+	}
+});
+
+// New IPC handlers for speech recognition
+ipcMain.handle("request-microphone-access", async () => {
+	try {
+		// Show a dialog to the user explaining microphone usage
+		const { response } = await dialog.showMessageBox(mainWindow, {
+			type: "question",
+			buttons: ["Allow", "Deny"],
+			title: "Microphone Access",
+			message:
+				"Bible Echo needs access to your microphone to transcribe sermons and detect Bible verses.",
+			detail:
+				"Your audio will be processed locally and never sent to any external servers.",
+		});
+
+		return response === 0; // 0 is the index of "Allow" button
+	} catch (error) {
+		console.error("Error requesting microphone access:", error);
 		return false;
 	}
 });

@@ -5,7 +5,6 @@ import {
 	Search,
 	Music,
 	Edit,
-	Trash2,
 	Play,
 	ChevronLeft,
 	ChevronRight,
@@ -24,6 +23,7 @@ interface SongManagerProps {
 	goToNextVerse?: () => void;
 	goToPrevVerse?: () => void;
 	selectedSong?: Song | null;
+	onSongUpdate?: (song: Song) => void;
 }
 
 const SongManager: React.FC<SongManagerProps> = ({
@@ -38,11 +38,16 @@ const SongManager: React.FC<SongManagerProps> = ({
 	const [showCreateForm, setShowCreateForm] = useState(false);
 	const [showEditForm, setShowEditForm] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
-	const [newSong, setNewSong] = useState({
+	const [newSong, setNewSong] = useState<{
+		title: string;
+		artist: string;
+		lyrics: SongSection[];
+		themes: string[];
+	}>({
 		title: "",
 		artist: "",
-		lyrics: [{ id: "1", type: "verse" as const, number: 1, text: "" }],
-		themes: [] as string[],
+		lyrics: [{ id: "1", type: "verse", number: 1, text: "" }],
+		themes: [],
 	});
 	const [editingSong, setEditingSong] = useState<Song | null>(null);
 
@@ -112,10 +117,9 @@ const SongManager: React.FC<SongManagerProps> = ({
 		if (isNewSong) {
 			setNewSong((prev) => ({ ...prev, lyrics: [...prev.lyrics, newSection] }));
 		} else {
-			setEditingSong((prev) => ({
-				...prev,
-				lyrics: [...prev.lyrics, newSection],
-			}));
+			setEditingSong((prev) =>
+				prev ? { ...prev, lyrics: [...prev.lyrics, newSection] } : prev,
+			);
 		}
 	};
 
@@ -135,12 +139,16 @@ const SongManager: React.FC<SongManagerProps> = ({
 				),
 			}));
 		} else {
-			setEditingSong((prev) => ({
-				...prev,
-				lyrics: prev.lyrics.map((section) =>
-					section.id === id ? { ...section, ...updates } : section,
-				),
-			}));
+			setEditingSong((prev) =>
+				prev
+					? {
+							...prev,
+							lyrics: prev.lyrics.map((section) =>
+								section.id === id ? { ...section, ...updates } : section,
+							),
+					  }
+					: prev,
+			);
 		}
 	};
 
@@ -154,10 +162,14 @@ const SongManager: React.FC<SongManagerProps> = ({
 				lyrics: prev.lyrics.filter((section) => section.id !== id),
 			}));
 		} else {
-			setEditingSong((prev) => ({
-				...prev,
-				lyrics: prev.lyrics.filter((section) => section.id !== id),
-			}));
+			setEditingSong((prev) =>
+				prev
+					? {
+							...prev,
+							lyrics: prev.lyrics.filter((section) => section.id !== id),
+					  }
+					: prev,
+			);
 		}
 	};
 
@@ -173,10 +185,9 @@ const SongManager: React.FC<SongManagerProps> = ({
 					themes: [...prev.themes, theme.trim()],
 				}));
 			} else {
-				setEditingSong((prev) => ({
-					...prev,
-					themes: [...prev.themes, theme.trim()],
-				}));
+				setEditingSong((prev) =>
+					prev ? { ...prev, themes: [...prev.themes, theme.trim()] } : prev,
+				);
 			}
 		}
 	};
@@ -191,10 +202,11 @@ const SongManager: React.FC<SongManagerProps> = ({
 				themes: prev.themes.filter((t) => t !== theme),
 			}));
 		} else {
-			setEditingSong((prev) => ({
-				...prev,
-				themes: prev.themes.filter((t) => t !== theme),
-			}));
+			setEditingSong((prev) =>
+				prev
+					? { ...prev, themes: prev.themes.filter((t) => t !== theme) }
+					: prev,
+			);
 		}
 	};
 
@@ -247,7 +259,8 @@ const SongManager: React.FC<SongManagerProps> = ({
 										currentVerseIndex === 0
 											? "text-gray-600"
 											: "text-blue-400 hover:text-blue-300"
-									}`}>
+									}`}
+									title='Previous Verse'>
 									<ChevronLeft size={18} />
 								</button>
 								<span className='text-sm text-gray-400'>
@@ -262,7 +275,8 @@ const SongManager: React.FC<SongManagerProps> = ({
 										currentVerseIndex === selectedSong.lyrics.length - 1
 											? "text-gray-600"
 											: "text-blue-400 hover:text-blue-300"
-									}`}>
+									}`}
+									title='Next Verse'>
 									<ChevronRight size={18} />
 								</button>
 							</div>
@@ -283,7 +297,8 @@ const SongManager: React.FC<SongManagerProps> = ({
 									setShowEditForm(false);
 									setEditingSong(null);
 								}}
-								className='text-gray-400 hover:text-white'>
+								className='text-gray-400 hover:text-white'
+								title='Close Edit Song Form'>
 								<X size={20} />
 							</button>
 						</div>
@@ -294,10 +309,9 @@ const SongManager: React.FC<SongManagerProps> = ({
 									type='text'
 									value={editingSong.title}
 									onChange={(e) =>
-										setEditingSong((prev) => ({
-											...prev,
-											title: e.target.value,
-										}))
+										setEditingSong((prev) =>
+											prev ? { ...prev, title: e.target.value } : prev,
+										)
 									}
 									placeholder='Song Title'
 									className='p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500'
@@ -306,10 +320,9 @@ const SongManager: React.FC<SongManagerProps> = ({
 									type='text'
 									value={editingSong.artist || ""}
 									onChange={(e) =>
-										setEditingSong((prev) => ({
-											...prev,
-											artist: e.target.value,
-										}))
+										setEditingSong((prev) =>
+											prev ? { ...prev, artist: e.target.value } : prev,
+										)
 									}
 									placeholder='Artist (optional)'
 									className='p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500'
@@ -330,7 +343,7 @@ const SongManager: React.FC<SongManagerProps> = ({
 								</div>
 
 								<div className='space-y-3'>
-									{editingSong.lyrics.map((section, index) => (
+									{editingSong.lyrics.map((section) => (
 										<div
 											key={section.id}
 											className='border border-gray-600 rounded-lg p-3'>
@@ -345,7 +358,8 @@ const SongManager: React.FC<SongManagerProps> = ({
 																false,
 															)
 														}
-														className='text-sm bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white'>
+														className='text-sm bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white'
+														title='Section Type'>
 														<option value='verse'>Verse</option>
 														<option value='chorus'>Chorus</option>
 														<option value='bridge'>Bridge</option>
@@ -366,6 +380,8 @@ const SongManager: React.FC<SongManagerProps> = ({
 															}
 															className='w-16 text-sm bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white'
 															min='1'
+															title='Verse Number'
+															placeholder='Verse #'
 														/>
 													)}
 												</div>
@@ -374,7 +390,8 @@ const SongManager: React.FC<SongManagerProps> = ({
 														onClick={() =>
 															removeLyricsSection(section.id, false)
 														}
-														className='text-red-400 hover:text-red-300'>
+														className='text-red-400 hover:text-red-300'
+														title='Remove Section'>
 														<MinusCircle size={16} />
 													</button>
 												)}
@@ -418,7 +435,8 @@ const SongManager: React.FC<SongManagerProps> = ({
 											<span className='text-sm text-gray-300'>{theme}</span>
 											<button
 												onClick={() => handleRemoveTheme(theme, false)}
-												className='ml-2 text-red-400 hover:text-red-300'>
+												className='ml-2 text-red-400 hover:text-red-300'
+												title='Remove Theme'>
 												<X size={14} />
 											</button>
 										</div>
@@ -489,7 +507,7 @@ const SongManager: React.FC<SongManagerProps> = ({
 								</div>
 
 								<div className='space-y-3'>
-									{newSong.lyrics.map((section, index) => (
+									{newSong.lyrics.map((section) => (
 										<div
 											key={section.id}
 											className='border border-gray-600 rounded-lg p-3'>
@@ -504,7 +522,8 @@ const SongManager: React.FC<SongManagerProps> = ({
 																true,
 															)
 														}
-														className='text-sm bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white'>
+														className='text-sm bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white'
+														title='Section Type'>
 														<option value='verse'>Verse</option>
 														<option value='chorus'>Chorus</option>
 														<option value='bridge'>Bridge</option>
@@ -525,6 +544,8 @@ const SongManager: React.FC<SongManagerProps> = ({
 															}
 															className='w-16 text-sm bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white'
 															min='1'
+															title='Verse Number'
+															placeholder='Verse #'
 														/>
 													)}
 												</div>
@@ -533,7 +554,8 @@ const SongManager: React.FC<SongManagerProps> = ({
 														onClick={() =>
 															removeLyricsSection(section.id, true)
 														}
-														className='text-red-400 hover:text-red-300'>
+														className='text-red-400 hover:text-red-300'
+														title='Remove Section'>
 														<MinusCircle size={16} />
 													</button>
 												)}
@@ -577,7 +599,8 @@ const SongManager: React.FC<SongManagerProps> = ({
 											<span className='text-sm text-gray-300'>{theme}</span>
 											<button
 												onClick={() => handleRemoveTheme(theme, true)}
-												className='ml-2 text-red-400 hover:text-red-300'>
+												className='ml-2 text-red-400 hover:text-red-300'
+												title='Remove Theme'>
 												<X size={14} />
 											</button>
 										</div>
