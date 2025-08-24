@@ -36,27 +36,26 @@ export class TranscriptionService {
 				const data = await res.json();
 				if (data && data.error) message = data.error;
 			} catch {}
-			// Normalize some common cases to match server-side messages
-			if (res.status === 401) {
-				message = "Invalid API key - please check OpenAI configuration";
-			} else if (res.status === 429) {
-				message = "Rate limit exceeded - please try again later";
-			} else if (res.status === 413) {
+			// Handle common error cases
+			if (res.status === 413) {
 				message = "Audio file too large for transcription";
+			} else if (res.status === 500) {
+				message = "Server error - please check if Whisper model is loaded";
 			}
 			throw new Error(message);
 		}
 
 		const payload = await res.json();
-		// Expecting { text: string, segments?: Array<any> }
+		// Expecting { text: string, bible_references?: Array<any>, raw?: any }
 		const result: TranscriptionResult = {
 			text: payload.text || "",
-			segments: payload.segments || [],
+			segments: payload.raw?.chunks || [],
 			confidence:
 				typeof payload.confidence === "number" ? payload.confidence : undefined,
-			language: payload.language,
-			durationSec: payload.durationSec,
+			language: payload.raw?.language || "en",
+			durationSec: payload.raw?.duration,
 			timestamp: new Date(),
+			bibleReferences: payload.bible_references || [],
 		};
 		return result;
 	}

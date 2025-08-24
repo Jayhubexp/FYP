@@ -214,8 +214,13 @@ function App() {
 				],
 			}));
 
-			// Start the real speech recognition service
-			await speechRecognitionService.startListening();
+			// Start the real speech recognition service with callback
+			await speechRecognitionService.startListening((result) => {
+				handleTranscriptionUpdate(result.text);
+				if (result.bible_references) {
+					handleVerseDetected(result.bible_references);
+				}
+			});
 		} catch (error) {
 			console.error("Error starting speech recognition:", error);
 			setAppState((prev) => ({
