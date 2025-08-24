@@ -10,9 +10,11 @@
 		"lint": "eslint .",
 		"preview": "vite preview",
 		"start": "cross-env NODE_ENV=production electron .",
-		"electron-dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=production electron .\"",
+		"electron-dev": "concurrently \"npm run dev\" \"npm run backend\" \"wait-on http://localhost:5173 http://localhost:5000 && cross-env NODE_ENV=production electron .\"",
 		"electron-build": "npm run build && electron-builder",
-		"dist": "npm run build && electron-builder --publish=never"
+		"dist": "npm run build && electron-builder --publish=never",
+		"backend": "cd api && python server.py",
+		"backend-install": "cd api && pip install -r requirements.txt"
 	},
 	"dependencies": {
 		"@cloudinary/url-gen": "^1.21.0",

@@ -15,6 +15,14 @@ export interface TranscriptionResult {
 	segments?: Array<any>;
 	language?: string;
 	durationSec?: number;
+	bibleReferences?: Array<{
+		book: string;
+		chapter: number;
+		verse_start?: number;
+		verse_end?: number;
+		reference: string;
+		confidence: number;
+	}>;
 }
 
 export interface ProjectionSettings {

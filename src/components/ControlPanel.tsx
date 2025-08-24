@@ -150,27 +150,23 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 					// Update transcription in UI
 					onTranscriptionUpdate(result.text);
 
-					// Check if the transcription contains trigger words
-					if (speechRecognitionService.hasTriggerWords(result.text)) {
-						// Detect Bible verses from the transcription
-						const matchedVerses = await verseDetectionService.detectVerse(
-							result,
-						);
+					// The Python backend now handles Bible reference detection
+					// Detect Bible verses from the transcription
+					const matchedVerses = await verseDetectionService.detectVerse(result);
 
-						if (matchedVerses.length > 0) {
-							// Update the app state with matched verses
-							onVerseDetected(matchedVerses);
-						}
+					if (matchedVerses.length > 0) {
+						// Update the app state with matched verses
+						onVerseDetected(matchedVerses);
 					}
 
 					setTranscriptionStatus("listening");
 				},
 			);
 
-			onStartListening(); // Call the existing prop to update state
+			onStartListening();
 		} catch (error) {
 			console.error("Error starting speech recognition:", error);
-			// Show error to user
+			setTranscriptionStatus("idle");
 		} finally {
 			setIsInitializing(false);
 		}
@@ -179,7 +175,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 	const handleStopListening = () => {
 		speechRecognitionService.stopListening();
 		setTranscriptionStatus("idle");
-		onStopListening(); // Call the existing prop to update state
+		onStopListening();
 	};
 
 	return (
