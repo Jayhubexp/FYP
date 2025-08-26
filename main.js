@@ -12,6 +12,8 @@ import {
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import axios from "axios";
+import FormData from "form-data";
 
 // Fix for ES modules: recreate __dirname and __filename
 const __filename = fileURLToPath(import.meta.url);
@@ -641,4 +643,35 @@ process.on("unhandledRejection", (reason, promise) => {
 
 process.on("uncaughtException", (error) => {
 	console.error("Uncaught Exception:", error);
+});
+
+// IPC handler to upload audio from renderer via main process to avoid
+// Chromium chunked upload issues in Electron. Expects { name, type, dataBase64 }
+ipcMain.handle("upload-audio", async (event, payload) => {
+	try {
+		const { name, type, dataBase64 } = payload;
+
+		const buffer = Buffer.from(dataBase64, "base64");
+
+		const form = new FormData();
+		form.append("audio", buffer, { filename: name, contentType: type });
+
+		const endpoint = "http://localhost:5000/api/transcribe";
+
+		const headers = form.getHeaders ? form.getHeaders() : {};
+
+		const resp = await axios.post(endpoint, form, {
+			headers: {
+				...headers,
+			},
+			maxContentLength: Infinity,
+			maxBodyLength: Infinity,
+			timeout: 120000,
+		});
+
+		return { success: true, data: resp.data };
+	} catch (err) {
+		console.error("Main-process audio upload failed:", err);
+		return { success: false, error: err.message || String(err) };
+	}
 });

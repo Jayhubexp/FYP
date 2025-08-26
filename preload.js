@@ -48,6 +48,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	requestMicrophoneAccess: () =>
 		ipcRenderer.invoke("request-microphone-access"),
 
+	// Upload audio via main process to avoid chunked upload issues
+	uploadAudio: (payload) => ipcRenderer.invoke("upload-audio", payload),
+
 	// Platform info
 	platform: process.platform,
 	isElectron: true,

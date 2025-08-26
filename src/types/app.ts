@@ -23,6 +23,8 @@ export interface TranscriptionResult {
 		reference: string;
 		confidence: number;
 	}>;
+	// Verses returned by the backend (fully fetched BibleVerse objects)
+	verses?: BibleVerse[];
 }
 
 export interface ProjectionSettings {

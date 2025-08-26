@@ -34,13 +34,14 @@ import VerseList from "./VerseList";
 import ManualSearch from "./ManualSearch";
 import ProjectionSettings from "./ProjectionSettings";
 import ActivityLog from "./ActivityLog";
-import SongManager from "./SongManager";
+// SongManager intentionally not imported here (unused in this component)
 import MediaManager from "./MediaManager";
 import ScheduleManager from "./ScheduleManager";
 import ThemeManager from "./ThemeManager";
 import LiveControls from "./LiveControls";
 import { speechRecognitionService } from "../services/speechRecognitionService";
 import { verseDetectionService } from "../services/verseDetectionService";
+// transcriptionService polling removed; POST responses used instead
 
 interface ControlPanelProps {
 	appState: AppState;
@@ -77,19 +78,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 	onManualSearch,
 	onProjectionSettingsChange,
 	onToggleProjection,
-	onSongCreate,
-	onSongSelect,
 	onMediaSelect,
 	onScheduleCreate,
 	onPlaylistItemSelect,
 	onThemeApply,
 	onLiveControl,
 	showProjection,
-	currentVerseIndex,
-	goToNextVerse,
-	goToPrevVerse,
 	onMediaAdd,
-	onSongUpdate,
 	onTranscriptionUpdate,
 	onVerseDetected,
 }) => {
@@ -109,6 +104,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 	const [microphonePermission, setMicrophonePermission] = useState<
 		boolean | null
 	>(null);
+
+	// polling removed — we rely on POST responses for transcriptions
 
 	// Check microphone permission on mount
 	useEffect(() => {
@@ -130,11 +127,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 		checkMicrophonePermission();
 	}, [isElectron, electronAPI]);
 
-	// Determine the currently selected song
-	const selectedSong =
-		appState.currentPlaylistItem?.type === "song"
-			? (appState.currentPlaylistItem.content as Song)
-			: null;
+	// (selected song and song management handled in Songs tab)
 
 	const handleStartListening = async () => {
 		if (isInitializing || microphonePermission === false) return;
@@ -151,18 +144,24 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 					onTranscriptionUpdate(result.text);
 
 					// The Python backend now handles Bible reference detection
-					// Detect Bible verses from the transcription
-					const matchedVerses = await verseDetectionService.detectVerse(result);
-
-					if (matchedVerses.length > 0) {
-						// Update the app state with matched verses
-						onVerseDetected(matchedVerses);
+					// Prefer verses returned by the backend
+					if (result.verses && result.verses.length > 0) {
+						onVerseDetected(result.verses);
+					} else {
+						// Fallback to local detection if backend did not provide verses
+						const matchedVerses = await verseDetectionService.detectVerse(
+							result,
+						);
+						if (matchedVerses.length > 0) {
+							onVerseDetected(matchedVerses);
+						}
 					}
+
+					// rely on POST response delivered by the callback for transcriptions
 
 					setTranscriptionStatus("listening");
 				},
 			);
-
 			onStartListening();
 		} catch (error) {
 			console.error("Error starting speech recognition:", error);
@@ -176,6 +175,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 		speechRecognitionService.stopListening();
 		setTranscriptionStatus("idle");
 		onStopListening();
+
+		// nothing to clean up for polling
 	};
 
 	return (
@@ -350,21 +351,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 								onVerseSelect={onVerseSelect}
 							/>
 						</div>
-					</div>
-				)}
-
-				{activeTab === "songs" && (
-					<div className='h-full'>
-						<SongManager
-							songs={appState.songs}
-							onSongCreate={onSongCreate}
-							onSongSelect={onSongSelect}
-							onSongUpdate={onSongUpdate}
-							currentVerseIndex={currentVerseIndex}
-							goToNextVerse={goToNextVerse}
-							goToPrevVerse={goToPrevVerse}
-							selectedSong={selectedSong}
-						/>
 					</div>
 				)}
 

@@ -15,6 +15,7 @@ This is the Python backend server for Bible Echo that uses OpenAI's Whisper mode
 
 - Python 3.8 or higher
 - pip (Python package manager)
+- ffmpeg (optional but recommended for robust audio conversion). On Windows you can install from https://ffmpeg.org/ and ensure `ffmpeg` is on PATH.
 
 ### Installation
 
@@ -143,6 +144,7 @@ Environment variables:
 
 1. **Model Download Fails**: Ensure stable internet connection for first run
 2. **Audio Format Errors**: Server accepts most audio formats (webm, wav, mp3, m4a)
+   - If you see poor transcription results for webm/m4a from browsers, install `ffmpeg` so the server can convert to a 16k mono WAV before passing to the model.
 3. **GPU Not Detected**: Install PyTorch with CUDA support for GPU acceleration
 4. **Memory Issues**: whisper-small requires ~1GB RAM, use whisper-tiny for lower memory usage
 
