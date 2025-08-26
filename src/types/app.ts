@@ -5,6 +5,7 @@ export interface BibleVerse {
 	chapter: number;
 	verse: number;
 	text: string;
+	version?: string;
 	confidence?: number;
 }
 

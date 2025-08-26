@@ -1,79 +1,43 @@
 import { BibleVerse } from "../types/app";
 
 class BibleSearchService {
-	// Always use the local backend proxy /api/bible-search which now queries the local SQLite DB.
-
-	// Detect if query looks like a reference (e.g., "John 3:16")
-	private isReference(query: string): boolean {
-		return /\b\d?\s?[A-Za-z]+\s+\d+:\d+\b/.test(query);
+	// Helper function to correctly map the server response to our BibleVerse type
+	private mapApiResponseToVerse(apiVerse: any): BibleVerse {
+		// The server provides 'book', 'chapter', 'verse', 'text', and 'version' directly.
+		// We just need to ensure the 'reference' field is created for display purposes.
+		return {
+			id:
+				apiVerse.id || `${apiVerse.book} ${apiVerse.chapter}:${apiVerse.verse}`,
+			reference: `${apiVerse.book} ${apiVerse.chapter}:${apiVerse.verse}`,
+			book: apiVerse.book || "Unknown Book",
+			chapter: apiVerse.chapter || 0,
+			verse: apiVerse.verse || 0,
+			text: apiVerse.text || "No text available.",
+			version: apiVerse.version || "KJV", // Add the version field
+		};
 	}
 
-	// Get a verse by reference like "John 3:16"
-	async getVerseByReference(ref: string): Promise<BibleVerse | null> {
-		try {
-			const resp = await fetch(
-				`http://localhost:5000/api/bible-search?q=${encodeURIComponent(ref)}`,
-			);
-			if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-			const data = await resp.json();
-			const verses = data?.verses || [];
-			if (!verses || verses.length === 0) return null;
-			const v = verses[0];
-			// Normalize to BibleVerse
-			const [bookPart, rest] = (v.reference || "").split(" ", 2);
-			const parts = (rest || "").split(":");
-			const chapter = parseInt(parts[0] || "0") || 0;
-			const verseNum = parseInt(parts[1] || "0") || 0;
-			return {
-				id: v.id || `${v.reference}`,
-				reference: v.reference || "",
-				book: bookPart || v.book || "",
-				chapter,
-				verse: verseNum,
-				text: v.text || "",
-			} as BibleVerse;
-		} catch (error) {
-			console.error("Error fetching verse from local proxy:", error);
-			return null;
-		}
-	}
-
-	// Search verses by text content
+	// Search verses by any query (reference or keyword)
 	async searchVerses(query: string): Promise<BibleVerse[]> {
 		if (!query.trim()) return [];
 		try {
+			// The backend handles both reference and keyword searches with the same endpoint
 			const resp = await fetch(
 				`http://localhost:5000/api/bible-search?q=${encodeURIComponent(query)}`,
 			);
-			if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-			const data = await resp.json();
-			const verses = data?.verses || [];
-			return verses.map((v: any) => {
-				const [bookPart, rest] = (v.reference || "").split(" ", 2);
-				const parts = (rest || "").split(":");
-				const chapter = parseInt(parts[0] || "0") || 0;
-				const verseNum = parseInt(parts[1] || "0") || 0;
-				return {
-					id: v.id || `${v.reference}`,
-					reference: v.reference || "",
-					book: bookPart || v.book || "",
-					chapter,
-					verse: verseNum,
-					text: v.text || "",
-				} as BibleVerse;
-			});
-		} catch (error) {
-			console.error("Bible search error from local proxy:", error);
-			return [];
-		}
-	}
 
-	// Master method: decide whether query is a reference or text
-	async findVerse(query: string): Promise<BibleVerse[] | BibleVerse | null> {
-		if (this.isReference(query)) {
-			return await this.getVerseByReference(query);
-		} else {
-			return await this.searchVerses(query);
+			if (!resp.ok) {
+				throw new Error(`Server responded with status: ${resp.status}`);
+			}
+
+			const data = await resp.json();
+			const versesFromApi = data?.verses || [];
+
+			// Use our mapping function to ensure the data is in the correct format
+			return versesFromApi.map(this.mapApiResponseToVerse);
+		} catch (error) {
+			console.error("Bible search error:", error);
+			return [];
 		}
 	}
 }
