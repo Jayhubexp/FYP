@@ -113,7 +113,7 @@ BIBLE_BOOKS = {
     '1 thessalonians': '1 Thessalonians', '2 thessalonians': '2 Thessalonians', '1 timothy': '1 Timothy',
     '2 timothy': '2 Timothy', 'titus': 'Titus', 'philemon': 'Philemon', 'hebrews': 'Hebrews',
     'james': 'James', '1 peter': '1 Peter', '2 peter': '2 Peter', '1 john': '1 John',
-    '2 john': '2 John', '3 john': '3 John', 'jude': 'Jude', 'revelation': 'Revelation'
+    '2 john': '2 John', '3 john': '3 John', 'jude': 'Jude', 'revelation': 'Revelation of John'
 }
 # Create a reverse mapping for easier lookup
 CANONICAL_BIBLE_BOOKS = {k: v for k, v in BIBLE_BOOKS.items()}
@@ -130,7 +130,7 @@ CANONICAL_BIBLE_BOOKS.update({
     'gal': 'Galatians', 'eph': 'Ephesians', 'phil': 'Philippians', 'col': 'Colossians',
     '1 thess': '1 Thessalonians', '2 thess': '2 Thessalonians', '1 tim': '1 Timothy', '2 tim': '2 Timothy',
     'tit': 'Titus', 'phlm': 'Philemon', 'heb': 'Hebrews', 'jas': 'James', '1 pet': '1 Peter',
-    '2 pet': '2 Peter', '1 jn': '1 John', '2 jn': '2 John', '3 jn': '3 John', 'rev': 'Revelation'
+    '2 pet': '2 Peter', '1 jn': '1 John', '2 jn': '2 John', '3 jn': '3 John', 'rev': 'Revelation of John'
 })
 
 def get_db_connection():
@@ -416,48 +416,67 @@ def transcribe_audio():
 
 @app.route('/api/bible-search', methods=['GET'])
 def bible_search():
+    """
+    Handles both reference and keyword searches for Bible verses.
+    """
     query = request.args.get('q', '').strip()
     if not query:
         return jsonify({'error': 'Query parameter "q" is required'}), 400
-    
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
-        
-    verses = []
-    try:
-        # Regex to handle references like "John 3:16", "John3:16", "1 John 2:5"
-        match = re.match(r'^([1-3]?\s*\w+)\s*(\d+):(\d+)$', query, re.IGNORECASE)
 
-        if match:
-            # --- Search by Reference ---
-            book_input, chapter, verse = match.groups()
-            # Normalize book name by removing spaces for a flexible search
-            book_name_query = book_input.replace(" ", "")
-            
-            cursor = conn.cursor()
-            # This query finds the book by comparing the spaceless, lowercase version.
-            cursor.execute(
-                "SELECT * FROM bible WHERE version='KJV' AND REPLACE(LOWER(book), ' ', '') = LOWER(?) AND chapter=? AND verse=?",
-                (book_name_query, chapter, verse)
-            )
-            row = cursor.fetchone()
-            if row:
-                verses.append(dict(row))
-        else:
-            # --- Search by Keyword ---
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT * FROM bible WHERE version='KJV' AND text LIKE ? LIMIT 10",
-                (f"%{query}%",)
-            )
-            for row in cursor.fetchall():
-                verses.append(dict(row))
+    verses = []
     
-    except Exception as e:
-        logging.error(f"Search failed: {e}")
-    finally:
-        conn.close()
+    # --- Step 1: Attempt to parse the query as a specific Bible reference ---
+    parsed_refs = parse_bible_reference(query)
+    
+    if parsed_refs:
+        # It's a reference, so fetch the specific verse(s).
+        ref = parsed_refs[0]  # Use the first valid match
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                # Use 'KJV' consistently, as the database was rebuilt with this version key.
+                version = os.getenv('DEFAULT_BIBLE_VERSION', 'KJV')
+                
+                sql = "SELECT * FROM bible WHERE version=? AND book=? AND chapter=?"
+                params = [version, ref['book'], ref['chapter']]
+
+                vs_start = ref.get('verse_start')
+                vs_end = ref.get('verse_end')
+
+                if vs_start and vs_end and vs_start != vs_end:
+                    sql += " AND verse BETWEEN ? AND ?"
+                    params.extend([vs_start, vs_end])
+                elif vs_start:
+                    sql += " AND verse = ?"
+                    params.append(vs_start)
+                
+                cursor.execute(sql, tuple(params))
+                for row in cursor.fetchall():
+                    verses.append(dict(row))
+            except Exception as e:
+                logger.error(f"Reference search for '{query}' failed: {e}")
+            finally:
+                conn.close()
+
+    # --- Step 2: If no verses found by reference, perform a keyword search ---
+    # This block runs if the query wasn't a reference OR if the reference was not found.
+    if not verses:
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                version = os.getenv('DEFAULT_BIBLE_VERSION', 'KJV')
+                cursor.execute(
+                    "SELECT * FROM bible WHERE version=? AND text LIKE ? LIMIT 10",
+                    (version, f"%{query}%")
+                )
+                for row in cursor.fetchall():
+                    verses.append(dict(row))
+            except Exception as e:
+                logger.error(f"Keyword search for '{query}' failed: {e}")
+            finally:
+                conn.close()
 
     response = {'query': query, 'totalResults': len(verses), 'verses': verses}
     if not verses:
