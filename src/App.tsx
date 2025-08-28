@@ -4,7 +4,7 @@ import ControlPanel from "./components/ControlPanel";
 import ProjectionDisplay from "./components/ProjectionDisplay";
 import {
 	BibleVerse,
-	// TranscriptionResult, // Removed unused import
+	TranscriptionResult, // Removed unused import
 	AppState,
 	Song,
 	// Presentation, // Removed unused import
@@ -208,19 +208,13 @@ function App() {
 					...prev.logs,
 					{
 						timestamp: new Date(),
-						message: "Started listening for speech",
+						message: "Started live listening session",
 						type: "info",
 					},
 				],
 			}));
-
-			// Start the real speech recognition service with callback
-			await speechRecognitionService.startListening((result) => {
-				handleTranscriptionUpdate(result.text);
-				if (result.bible_references) {
-					handleVerseDetected(result.bible_references);
-				}
-			});
+			// Provide the automated handler as the callback to the service
+			await speechRecognitionService.startListening(handleLiveTranscription);
 		} catch (error) {
 			console.error("Error starting speech recognition:", error);
 			setAppState((prev) => ({
@@ -230,7 +224,7 @@ function App() {
 					...prev.logs,
 					{
 						timestamp: new Date(),
-						message: `Error starting speech recognition: ${error}`,
+						message: `Error starting listening: ${error}`,
 						type: "error",
 					},
 				],
@@ -238,6 +232,41 @@ function App() {
 		}
 	};
 
+	const handleLiveTranscription = async (result: TranscriptionResult) => {
+		// Ignore empty results
+		if (!result || !result.text.trim()) {
+			return;
+		}
+
+		const transcribedText = result.text;
+
+		// Update the UI with the latest transcribed text
+		setAppState((prev) => ({
+			...prev,
+			currentTranscription: transcribedText,
+		}));
+
+		// Automatically search for verses using the transcribed text
+		const matches = await bibleSearchService.searchVerses(transcribedText);
+
+		// If verses are found, update the list and automatically select the best match
+		if (matches.length > 0) {
+			setAppState((prev) => ({
+				...prev,
+				matchedVerses: matches,
+				// Automatically select the first verse as the best match
+				selectedVerse: matches[0],
+				logs: [
+					...prev.logs,
+					{
+						timestamp: new Date(),
+						message: `Auto-found and selected: ${matches[0].reference}`,
+						type: "success",
+					},
+				],
+			}));
+		}
+	};
 	const handleStopListening = () => {
 		setAppState((prev) => ({
 			...prev,
@@ -252,31 +281,6 @@ function App() {
 		speechRecognitionService.stopListening();
 	};
 
-	const handleTranscriptionUpdate = (text: string) => {
-		// Update the app state with the new transcription
-		setAppState((prev) => ({
-			...prev,
-			currentTranscription: text,
-		}));
-	};
-
-	const handleVerseDetected = (verses: BibleVerse[]) => {
-		// Update the app state with the matched verses
-		setAppState((prev) => ({
-			...prev,
-			matchedVerses: verses,
-			selectedVerse: verses.length > 0 ? verses[0] : null,
-			logs: [
-				...prev.logs,
-				{
-					timestamp: new Date(),
-					message: `Detected ${verses.length} matching verses from speech`,
-					type: "success",
-				},
-			],
-		}));
-	};
-
 	const handleVerseSelect = (verse: BibleVerse) => {
 		setAppState((prev) => ({
 			...prev,
@@ -285,7 +289,7 @@ function App() {
 				...prev.logs,
 				{
 					timestamp: new Date(),
-					message: `Selected verse: ${verse.reference}`,
+					message: `Manually selected verse: ${verse.reference}`,
 					type: "success",
 				},
 			],
@@ -297,11 +301,13 @@ function App() {
 		setAppState((prev) => ({
 			...prev,
 			matchedVerses: matches,
+			// Also auto-select the first result for manual searches
+			selectedVerse: matches.length > 0 ? matches[0] : null,
 			logs: [
 				...prev.logs,
 				{
 					timestamp: new Date(),
-					message: `Manual search for: "${query}" returned ${matches.length} results`,
+					message: `Manual search for "${query}" found ${matches.length} results`,
 					type: "info",
 				},
 			],
@@ -531,8 +537,6 @@ function App() {
 					goToPrevVerse={goToPrevVerse}
 					onMediaAdd={handleMediaAdd}
 					onSongUpdate={handleSongUpdate}
-					onTranscriptionUpdate={handleTranscriptionUpdate}
-					onVerseDetected={handleVerseDetected}
 				/>
 			</div>
 			{/* Projection Display Window */}
