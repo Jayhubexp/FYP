@@ -75,7 +75,7 @@ CANONICAL_BIBLE_BOOKS = {
     'jas': 'James', '1 peter': '1 Peter', '1 pet': '1 Peter', '2 peter': '2 Peter',
     '2 pet': '2 Peter', '1 john': '1 John', '1 jn': '1 John', '2 john': '2 John',
     '2 jn': '2 John', '3 john': '3 John', '3 jn': '3 John', 'jude': 'Jude',
-    'revelation': 'Revelation', 'rev': 'Revelation' # Corrected from "Revelation of John"
+    'revelation': 'Revelation of John', 'rev': 'Revelation of John' # Corrected from "Revelation of John"
 }
 
 # --- Helper Functions ---
