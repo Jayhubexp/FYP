@@ -34,7 +34,7 @@ def initialize_whisper_model(model_name: str = "tiny.en"): # Change "base" to "t
         return True
     try:
         logger.info(f"Loading whisper model '{model_name}' (this may take a while)...")
-        whisper_model = whisper.load_model(model_name)
+        whisper_model = whisper.load_model(model_name, device="cpu")
         logger.info("Whisper model loaded successfully.")
         return True
     except Exception as e:
@@ -199,7 +199,7 @@ def transcribe_audio_endpoint():
             audio_file.save(tmp.name)
             audio_path = tmp.name
 
-        # --- THIS IS THE ONLY FIX YOU NEED ---
+        
         # Check the file size before transcription to prevent crashes from empty files.
         if os.path.getsize(audio_path) < 1024: # Check if file is less than 1KB
             logger.warning(f"Received an empty or very small audio file. Skipping transcription.")
@@ -209,7 +209,7 @@ def transcribe_audio_endpoint():
                 'raw': {},
                 'info': 'No audio detected in the recording.'
             })
-        # --- END OF FIX ---
+        
 
         # Transcribe the original audio file directly. Whisper will handle the conversion.
         if whisper_model:
@@ -252,35 +252,4 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     logger.info(f" Starting Final Automated Bible Server on http://localhost:{port}")
     app.run(host='0.0.0.0', port=port, debug=False)
-
-
-
-# def convert_to_wav(input_path: str) -> Optional[str]:
-#     """Convert an audio file to WAV using ffmpeg. Returns path to converted file or None on failure."""
-#     try:
-#         base, _ = os.path.splitext(input_path)
-#         out_path = f"{base}.converted.wav"
-#         # Run ffmpeg to convert to 16k WAV PCM which models accept well
-#         cmd = [
-#             "ffmpeg",
-#             "-y",
-#             "-i",
-#             input_path,
-#             "-ar",
-#             "16000",
-#             "-ac",
-#             "1",
-#             "-c:a",
-#             "pcm_s16le",
-#             out_path,
-#         ]
-#         subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-#         return out_path
-#     except Exception as e:
-#         logger.warning(f"ffmpeg conversion failed or ffmpeg not available: {e}")
-#         return None
-
-
-
-
 
