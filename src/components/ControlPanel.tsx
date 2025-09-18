@@ -299,7 +299,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
 export default ControlPanel;
 
-// import React, { useState } from "react";
 // import {
 // 	useElectron,
 // 	useElectronDisplays,
